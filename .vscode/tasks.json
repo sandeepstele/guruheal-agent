@@ -1,0 +1,50 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "setup-venv",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+            "-c",
+            "if [ -d \"venv\" ]; then echo \"Virtual environment already exists.\"; elif command -v python3 > /dev/null 2>&1; then python3 -m venv venv && echo \"Virtual environment created.\"; else python -m venv venv && echo \"Virtual environment created.\"; fi"
+      ],
+      "windows": {
+        "command": "powershell",
+        "args": [
+            "-NoProfile",
+            "-ExecutionPolicy", "Bypass",
+            "-Command",
+            "if ((Get-Command python -ErrorAction SilentlyContinue) -and (Test-Path -Path 'venv')) { Write-Host 'Virtual environment already exists.' } elseif (Test-Path -Path 'venv') { Write-Host 'Virtual environment already exists.' } elseif (Get-Command python3 -ErrorAction SilentlyContinue) { python3 -m venv venv; Write-Host 'Virtual environment created.' } else { python -m venv venv; Write-Host 'Virtual environment created.' }"
+        ]
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "install-dependencies",
+      "type": "shell",
+      "command": ". venv/bin/activate && pip install -r requirements.txt debugpy",
+      "windows": {
+        "command": ".\\venv\\Scripts\\Activate.ps1; pip install -r requirements.txt debugpy"
+      },
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "run-prelaunch-tasks",
+      "dependsOn": [
+        "setup-venv",
+        "install-dependencies"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    }
+  ]
+}

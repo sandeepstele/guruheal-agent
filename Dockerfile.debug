@@ -1,0 +1,26 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Copy requirements first for better caching
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt debugpy
+
+# Install debugpy for remote debugging
+RUN pip install --no-cache-dir debugpy
+
+# Copy application code
+COPY . .
+
+# Set environment variables
+ENV APP_NAME="FastAPI Boilerplate" \
+    APP_DESCRIPTION="FastAPI Boilerplate for Microservices" \
+    APP_VERSION="0.1.0" \
+    ENVIRONMENT="development" \
+    APP_PORT=8000
+
+# Expose the application port and debug port
+EXPOSE 8000 5678
+
+# Run the application with debugpy enabled
+CMD ["python", "-m", "debugpy", "--listen", "0.0.0.0:5678", "--wait-for-client", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
