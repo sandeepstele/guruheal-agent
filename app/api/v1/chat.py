@@ -37,6 +37,22 @@ async def get_chat(conversation_id: str, database: PgDatabase = Depends(get_db))
         media_type='application/json',
     )
 
+@router.delete('/{conversation_id}')
+async def delete_chat(conversation_id: str, database: PgDatabase = Depends(get_db)) -> Response:
+    """Delete a conversation and all its associated messages."""
+    try:
+        await database.delete_conversation(conversation_id)
+        return Response(
+            json.dumps({"status": "success", "message": f"Conversation {conversation_id} deleted successfully"}).encode('utf-8'),
+            media_type='application/json',
+        )
+    except DatabaseError as e:
+        return Response(
+            json.dumps({"status": "error", "message": str(e)}).encode('utf-8'),
+            status_code=404 if "not found" in str(e) else 500,
+            media_type='application/json',
+        )
+
 @router.post('/')
 async def post_chat(
     prompt: Annotated[str, Form()],
@@ -71,6 +87,7 @@ async def post_chat(
                     m = ModelResponse(parts=[TextPart(text)], timestamp=result.timestamp())
                     yield json.dumps(to_chat_message(m, conversation_id)).encode('utf-8') + b'\n'
             
+            search_data = None
             # Try to retrieve sources from Redis using correlation ID
             correlation_id = correlation_id_ctx_var.get()
             if correlation_id:

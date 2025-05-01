@@ -90,4 +90,4 @@ async function onSubmit(e: SubmitEvent): Promise<void> {
 document.querySelector('form').addEventListener('submit', (e) => onSubmit(e).catch(onError))
 
 // load messages on page load
-fetch('/api/v1/chat/34e4dd1d-dabb-422b-9938-7a77ba4a9167').then(onFetchResponse).catch(onError)
+fetch('/api/v1/chat/52627fba-e051-4a34-ae3a-4d7d4442cf35').then(onFetchResponse).catch(onError)

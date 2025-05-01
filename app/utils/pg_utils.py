@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Optional, Dict
 from app.models.chat import to_chat_message
+import os
 import datetime
 
 import logfire  
@@ -39,11 +40,11 @@ class PgDatabase:
     @asynccontextmanager
     async def connectToDb(
         cls,
-        host: str = 'aws-0-ap-southeast-1.pooler.supabase.com',
-        port: int = 5432,
-        user: str = 'postgres.stjsiotdpmymrnkhjxrj',
-        password: str = 'pDlG6ickHHmzP89e',
-        database: str = 'postgres',
+        host: str = os.getenv('POSTGRES_HOST'),
+        port: int = os.getenv('POSTGRES_PORT'),
+        user: str = os.getenv('POSTGRES_USER'),
+        password: str = os.getenv('POSTGRES_PASSWORD'),
+        database: str = os.getenv('POSTGRES_DATABASE'),
         min_size: int = 2,
         max_size: int = 10
     ) -> AsyncIterator['PgDatabase']:
@@ -272,5 +273,36 @@ class PgDatabase:
             return str(row['id'])  # Convert UUID to string
         except Exception as e:
             raise DatabaseError(f"Failed to create conversation: {str(e)}")
+
+    async def delete_conversation(self, conversation_id: str) -> bool:
+        """
+        Delete a conversation and all its associated messages.
+        
+        Args:
+            conversation_id: The UUID of the conversation to delete
+            
+        Returns:
+            bool: True if the conversation was successfully deleted
+            
+        Raises:
+            DatabaseError: If the database operation fails
+        """
+        try:
+            async with self._get_connection() as con:
+                # Messages will be automatically deleted due to CASCADE
+                result = await con.execute(
+                    'DELETE FROM conversations WHERE id = $1;',
+                    conversation_id
+                )
+                
+                # Check if any rows were affected
+                if result == "DELETE 0":
+                    raise DatabaseError(f"Conversation with ID {conversation_id} not found")
+                    
+                return True
+        except Exception as e:
+            if isinstance(e, DatabaseError):
+                raise e
+            raise DatabaseError(f"Failed to delete conversation: {str(e)}")
 
     

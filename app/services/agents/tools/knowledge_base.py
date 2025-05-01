@@ -42,8 +42,9 @@ async def query_knowledge_base(ctx: RunContext[Deps], request: KnowledgeBaseRequ
             
             query_body = {
                 "query": request.query,
-                "mode": "hybrid",
-                "ids": ids
+                "mode": "mix",
+                "ids": ids,
+                "top_k": 10
             }
             
             logfire.info("Making knowledge base request", 
