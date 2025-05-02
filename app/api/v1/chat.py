@@ -3,7 +3,7 @@ from __future__ import annotations as _annotations
 import json
 import datetime
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, Request, Form
 from fastapi.responses import FileResponse, Response, StreamingResponse
@@ -14,7 +14,8 @@ from app.services.agents.chat_agent import chat_agent as agent
 from pydantic_ai.messages import ModelResponse, TextPart
 from app.utils.pg_utils import PgDatabase
 from app.utils.pg_utils import DatabaseError
-from app.services.agents.follow_agent import follow_agent
+from app.services.agents.metadata_agent import metadata_agent
+from app.services.agents.title_agent import title_agent
 from core.middleware import correlation_id_ctx_var
 from app.utils.redis_utils import retrieve_web_search_sources
 
@@ -57,11 +58,15 @@ async def delete_chat(conversation_id: str, database: PgDatabase = Depends(get_d
 async def post_chat(
     prompt: Annotated[str, Form()],
     conversation_id: Annotated[str, Form()],
+    language: Annotated[Optional[str], Form()] = None,
+    use_web_search: Annotated[Optional[bool], Form()] = False,
     database: PgDatabase = Depends(get_db)
 ) -> StreamingResponse:
     async def stream_messages():
         """Streams new line delimited JSON `Message`s to the client."""
         # stream the user prompt so that can be displayed straight away
+        print(f"Use web search: {use_web_search}")
+
         yield (
             json.dumps(
                 {
@@ -79,7 +84,9 @@ async def post_chat(
         async with AsyncClient(timeout=30.0) as client, database._get_connection() as db_connection:
             deps = Deps(
                 client=client,
-                db_connection=db_connection  # Use a connection from the pool
+                db_connection=db_connection,  # Use a connection from the pool
+                language=language,  # Pass the language parameter to deps
+                use_web_search=use_web_search  # Pass the use_web_search parameter to deps
             )
             
             async with agent.run_stream(prompt, deps=deps, message_history=messages) as result:
@@ -99,13 +106,17 @@ async def post_chat(
                     search_data["sources"] = web_search_sources
             
             try:
-                follow_up_questions = await follow_agent.run(result.new_messages_json().decode('utf-8'), deps=deps)
+                metadata_response = await metadata_agent.run(result.new_messages_json().decode('utf-8'), deps=deps)
                 if not search_data:
                     search_data = {}
-                search_data['follow_up_questions'] = follow_up_questions.data.questions
+                search_data['follow_up_questions'] = metadata_response.data.questions
+                search_data['provide_appointment_booking'] = metadata_response.data.provide_appointment_booking
             except Exception as e:
                 print(f"Error: {e}")
+                if not search_data:
+                    search_data = {}
                 search_data['follow_up_questions'] = []
+                search_data['provide_appointment_booking'] = False
 
             yield (
                 json.dumps(
@@ -119,15 +130,29 @@ async def post_chat(
                 + b'\n'
             )
 
+            if len(messages) < 3:
+                try:
+                    title_response = await title_agent.run(result.new_messages_json().decode('utf-8'), deps=deps)
+                    if title_response and title_response.data.title:
+                        # Update the conversation title in the database
+                        await database.update_conversation_title(conversation_id, title_response.data.title)
+                except Exception as e:
+                    print(f"Error generating title: {str(e)}")
+
             await database.add_messages(result.new_messages_json(), conversation_id, search_data)
             
     return StreamingResponse(stream_messages(), media_type='text/plain')
 
 @router.get('/{user_id}/conversation_ids')
 async def get_conversation_ids(user_id: str, database: PgDatabase = Depends(get_db)) -> Response:
-    conversation_ids = await database.get_conversation_ids(user_id)
+    conversations = await database.get_conversation_ids(user_id)
+    # If a conversation has no title, generate a placeholder
+    for conversation in conversations:
+        if not conversation.get("title"):
+            conversation["title"] = f"Conversation {conversation['id'][:5]}"
+    
     return Response(
-        json.dumps([{"id":id, "title":"SomeTitle"+id[0:5]} for id in conversation_ids]).encode('utf-8'),
+        json.dumps(conversations).encode('utf-8'),
         media_type='application/json',
     )
     

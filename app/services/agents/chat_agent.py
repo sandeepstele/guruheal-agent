@@ -22,6 +22,41 @@ chat_agent = Agent(
     deps_type=Deps,
 )
 
+# Add dynamic system prompt for multilingual support
+@chat_agent.system_prompt
+def add_language_instructions(ctx: RunContext[Deps]) -> str:
+    instructions = []
+    
+    # Language instructions
+    language = ctx.deps.language
+    if language and language.lower() != 'en':
+        language_map = {
+            'hi': 'Hindi',
+            'ta': 'Tamil',
+            'te': 'Telugu',
+            'kn': 'Kannada'
+        }
+        
+        language_name = language_map.get(language.lower(), "")
+        if language_name:
+            instructions.append(f"""
+IMPORTANT LANGUAGE INSTRUCTION:
+- Respond to the user in {language_name} language.
+- When using tools like web_search or knowledge_base_search, always formulate your queries in English.
+- After receiving tool responses (which will be in English), translate the relevant information to {language_name} in your response to the user.
+- Keep all internal processing, reasoning, and tool usage in English.
+- Ensure your final response to the user is fully ONLY in {language_name}.
+""")
+    
+    # Web search instructions
+    if ctx.deps.use_web_search:
+        instructions.append("""
+IMPORTANT WEB SEARCH INSTRUCTION:
+- You MUST use the web_search tool at least once to find the most up-to-date information as the USER has specifically requested it.
+""")
+    
+    return "".join(instructions)
+
 @chat_agent.tool
 async def knowledge_base_search(ctx: RunContext[Deps], request: KnowledgeBaseRequest) -> dict:
     """

@@ -17,6 +17,8 @@ from pydantic_ai.exceptions import UnexpectedModelBehavior
 class Deps:
     client: AsyncClient
     db_connection: Connection
+    language: Optional[str] = None
+    use_web_search: bool = False
 
 
 class ChatMessage(TypedDict):

@@ -81,7 +81,7 @@ class PgDatabase:
             await self.pool.release(con)
 
     async def add_messages(self, messages: bytes, conversation_id: str, search_data: Optional[Dict] = None):
-        """Store raw messages without any filtering."""
+        """Store raw messages without any filtering and update conversation's updated_at timestamp."""
         try:
             # Convert bytes to string and parse JSON
             messages_str = messages.decode('utf-8')
@@ -99,6 +99,12 @@ class PgDatabase:
                         'INSERT INTO messages (message_list, conversation_id) VALUES ($1, $2);',
                         json.dumps(messages_list), conversation_id
                     )
+                
+                # Update the conversation's updated_at timestamp
+                await con.execute(
+                    'UPDATE conversations SET updated_at = NOW() WHERE id = $1;',
+                    conversation_id
+                )
         except json.JSONDecodeError as e:
             raise DatabaseError(f"Invalid JSON format in messages: {str(e)}")
         except Exception as e:
@@ -241,13 +247,17 @@ class PgDatabase:
         except Exception as e:
             raise DatabaseError(f"Failed to retrieve messages: {str(e)}")
 
-    async def get_conversation_ids(self, user_id: str) -> List[str]:
+    async def get_conversation_ids(self, user_id: str) -> List[Dict]:
         try:
             async with self._get_connection() as con:
                 rows = await con.fetch(
-                    'SELECT id FROM conversations WHERE user_id = $1', user_id
+                    'SELECT id, title, updated_at FROM conversations WHERE user_id = $1 ORDER BY updated_at DESC', 
+                    user_id
                 )
-            return [str(row['id']) for row in rows]  # Convert UUID to string
+            return [{"id": str(row['id']), 
+                    "title": row['title'] if row['title'] else None, 
+                    "last_used": row['updated_at'].isoformat() if row['updated_at'] else None} 
+                    for row in rows]
         except Exception as e:
             raise DatabaseError(f"Failed to retrieve conversation IDs: {str(e)}")
 
@@ -304,5 +314,36 @@ class PgDatabase:
             if isinstance(e, DatabaseError):
                 raise e
             raise DatabaseError(f"Failed to delete conversation: {str(e)}")
+
+    async def update_conversation_title(self, conversation_id: str, title: str) -> bool:
+        """
+        Update the title of a conversation.
+        
+        Args:
+            conversation_id: The UUID of the conversation
+            title: The new title for the conversation
+            
+        Returns:
+            bool: True if the title was successfully updated
+            
+        Raises:
+            DatabaseError: If the database operation fails
+        """
+        try:
+            async with self._get_connection() as con:
+                result = await con.execute(
+                    'UPDATE conversations SET title = $1 WHERE id = $2;',
+                    title, conversation_id
+                )
+                
+                # Check if any rows were affected
+                if result == "UPDATE 0":
+                    raise DatabaseError(f"Conversation with ID {conversation_id} not found")
+                    
+                return True
+        except Exception as e:
+            if isinstance(e, DatabaseError):
+                raise e
+            raise DatabaseError(f"Failed to update conversation title: {str(e)}")
 
     

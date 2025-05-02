@@ -34,22 +34,20 @@ class WebSearchRequest(BaseModel):
         description="The search query to find relevant information"
     )
 
-class FollowUpQuestionsResponse(BaseModel):
-    """Response containing follow-up questions based on conversation history."""
+class MetadataResponse(BaseModel):
+    """Response with follow-up questions and appointment booking flag"""
     questions: List[str] = Field(
-        ...,
-        description="List of follow-up questions related to the conversation",
+        description="List of follow-up questions the user might want to ask next",
         max_items=4
     )
-    
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "questions": [
-                    "What are the fundamental principles of Ayurveda regarding digestion?",
-                    "How does Siddha medicine approach respiratory conditions?",
-                    "Are there any herbal remedies traditionally used for joint pain?",
-                    "How does Gurubalaa Healthcare integrate traditional and modern approaches?"
-                ]
-            }
-        }
+    provide_appointment_booking: bool = Field(
+        description="Flag indicating whether an appointment booking link should be provided",
+        default=False
+    )
+
+class TitleResponse(BaseModel):
+    """Response with a generated title for the conversation"""
+    title: str = Field(
+        description="A short, descriptive title for the conversation (1-3 words)",
+        max_length=50
+    )
