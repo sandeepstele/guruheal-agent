@@ -118,6 +118,9 @@ async def post_chat(
                 search_data['follow_up_questions'] = []
                 search_data['provide_appointment_booking'] = False
 
+            if language:
+                search_data['language'] = language
+
             yield (
                 json.dumps(
                     {
@@ -132,7 +135,7 @@ async def post_chat(
 
             if len(messages) < 3:
                 try:
-                    title_response = await title_agent.run(result.new_messages_json().decode('utf-8'), deps=deps)
+                    title_response = await title_agent.run(result.all_messages_json().decode('utf-8'), deps=deps)
                     if title_response and title_response.data.title:
                         # Update the conversation title in the database
                         await database.update_conversation_title(conversation_id, title_response.data.title)

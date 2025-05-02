@@ -1,7 +1,8 @@
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Union
 import logfire
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.models.openai import OpenAIModel
+from pydantic_ai.tools import ToolDefinition
 from httpx import AsyncClient
 
 # Import from root level core directory
@@ -48,13 +49,6 @@ IMPORTANT LANGUAGE INSTRUCTION:
 - Ensure your final response to the user is fully ONLY in {language_name}.
 """)
     
-    # Web search instructions
-    if ctx.deps.use_web_search:
-        instructions.append("""
-IMPORTANT WEB SEARCH INSTRUCTION:
-- You MUST use the web_search tool at least once to find the most up-to-date information as the USER has specifically requested it.
-""")
-    
     return "".join(instructions)
 
 @chat_agent.tool
@@ -91,7 +85,15 @@ async def knowledge_base_search(ctx: RunContext[Deps], request: KnowledgeBaseReq
     """
     return await perform_knowledge_base_query(ctx, request)
 
-@chat_agent.tool
+async def only_if_web_search_enabled(
+    ctx: RunContext[Deps], tool_def: ToolDefinition
+) -> Union[ToolDefinition, None]:
+    """Only enables the web_search tool if use_web_search is true in the deps."""
+    if ctx.deps.use_web_search:
+        return tool_def
+    return None
+
+@chat_agent.tool(prepare=only_if_web_search_enabled)
 async def web_search(ctx: RunContext[Deps], request: WebSearchRequest) -> dict:
     """
     Search the web for relevant information about alternative medicine and health topics.
