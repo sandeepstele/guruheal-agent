@@ -62,6 +62,7 @@ class PgDatabase:
                     max_size=max_size,
                     command_timeout=60.0,
                     timeout=30.0,
+                    statement_cache_size=0
                 )
                 slf = cls(pool, loop)
                 yield slf
