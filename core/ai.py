@@ -25,7 +25,7 @@ def get_llm_model() -> OpenAIModel:
     return OpenAIModel(
         'gpt-4o-mini',
         # base_url='https://openrouter.ai/api/v1',
-        api_key='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'
+        api_key=os.getenv('OPENAI_API_KEY')
     )
 
 # def get_llm_model() -> OpenAIModel:
