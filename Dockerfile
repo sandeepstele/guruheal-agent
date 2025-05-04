@@ -6,9 +6,6 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY private-requirements.txt .
-RUN pip install --no-cache-dir -r private-requirements.txt
-
 # Copy application code
 COPY . .
 

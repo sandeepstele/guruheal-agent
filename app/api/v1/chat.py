@@ -111,15 +111,14 @@ async def post_chat(
                     search_data = {}
                 search_data['follow_up_questions'] = metadata_response.data.questions
                 search_data['provide_appointment_booking'] = metadata_response.data.provide_appointment_booking
+                search_data['recommend_product'] = metadata_response.data.recommend_product
             except Exception as e:
                 print(f"Error: {e}")
                 if not search_data:
                     search_data = {}
                 search_data['follow_up_questions'] = []
                 search_data['provide_appointment_booking'] = False
-
-            if language:
-                search_data['language'] = language
+                search_data['recommend_product'] = False
 
             yield (
                 json.dumps(

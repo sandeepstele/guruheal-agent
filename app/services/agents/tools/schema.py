@@ -35,13 +35,17 @@ class WebSearchRequest(BaseModel):
     )
 
 class MetadataResponse(BaseModel):
-    """Response with follow-up questions and appointment booking flag"""
+    """Response with follow-up questions, appointment booking flag, and product recommendation flag"""
     questions: List[str] = Field(
         description="List of follow-up questions the user might want to ask next",
         max_items=4
     )
     provide_appointment_booking: bool = Field(
         description="Flag indicating whether an appointment booking link should be provided",
+        default=False
+    )
+    recommend_product: bool = Field(
+        description="Flag indicating whether product recommendations should be shown",
         default=False
     )
 
