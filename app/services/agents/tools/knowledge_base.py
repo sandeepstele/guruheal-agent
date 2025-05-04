@@ -3,8 +3,11 @@ from typing import Dict
 from pydantic_ai import RunContext
 from app.models.chat import Deps
 from .schema import KnowledgeBaseRequest
+import os
+import traceback
+from httpx import ConnectError, ReadTimeout, HTTPStatusError
 
-KNOWLEDGE_BASE_URL = "http://localhost:9621/query"
+KNOWLEDGE_BASE_URL = os.getenv("RAG_URL")
 
 # Domain to ID mapping
 DOMAIN_TO_ID_MAP = {
@@ -46,6 +49,19 @@ async def query_knowledge_base(ctx: RunContext[Deps], request: KnowledgeBaseRequ
                 "ids": ids,
                 "top_k": 10
             }
+            
+            # Check if RAG_URL is set
+            if not KNOWLEDGE_BASE_URL:
+                span.set_status('error', "RAG_URL environment variable is not set")
+                logfire.error("RAG_URL environment variable is not set", 
+                    environment_vars=list(os.environ.keys()),
+                    query=request.query,
+                    domain=domain
+                )
+                return {
+                    "error": "config_error",
+                    "message": "Knowledge base URL (RAG_URL) is not configured"
+                }
             
             logfire.info("Making knowledge base request", 
                 query=request.query,
@@ -91,12 +107,55 @@ async def query_knowledge_base(ctx: RunContext[Deps], request: KnowledgeBaseRequ
                         "error": "query_failed",
                         "message": f"Knowledge base query failed with status code: {response.status_code}. Details: {error_detail}"
                     }
-                    
+            
+            except ConnectError as ce:
+                span.set_status('error', str(ce))
+                logfire.error("Knowledge base connection error",
+                    error=str(ce),
+                    error_type="ConnectError",
+                    traceback=traceback.format_exc(),
+                    url=KNOWLEDGE_BASE_URL,
+                    error_details="Unable to connect to the knowledge base server. Check if the service is running and accessible."
+                )
+                return {
+                    "error": "connection_error",
+                    "message": f"Failed to connect to knowledge base at {KNOWLEDGE_BASE_URL}: {str(ce)}"
+                }
+                
+            except ReadTimeout as rt:
+                span.set_status('error', str(rt))
+                logfire.error("Knowledge base request timeout",
+                    error=str(rt),
+                    error_type="ReadTimeout",
+                    timeout=30.0,
+                    url=KNOWLEDGE_BASE_URL
+                )
+                return {
+                    "error": "timeout_error",
+                    "message": f"Knowledge base request timed out after 30 seconds: {str(rt)}"
+                }
+                
+            except HTTPStatusError as hse:
+                span.set_status('error', str(hse))
+                logfire.error("Knowledge base HTTP status error",
+                    error=str(hse),
+                    error_type="HTTPStatusError",
+                    status_code=hse.response.status_code if hasattr(hse, 'response') else 'unknown',
+                    url=KNOWLEDGE_BASE_URL,
+                    response_text=hse.response.text[:500] if hasattr(hse, 'response') else 'unknown'
+                )
+                return {
+                    "error": "http_status_error",
+                    "message": f"Knowledge base server returned an error status: {str(hse)}"
+                }
+                
             except Exception as he:
                 span.set_status('error', str(he))
                 logfire.error("HTTP error during knowledge base query",
                     error=str(he),
-                    error_type=type(he).__name__
+                    error_type=type(he).__name__,
+                    traceback=traceback.format_exc(),
+                    url=KNOWLEDGE_BASE_URL
                 )
                 return {
                     "error": "http_error",
@@ -108,7 +167,7 @@ async def query_knowledge_base(ctx: RunContext[Deps], request: KnowledgeBaseRequ
             logfire.error("Knowledge base query failed", 
                 error=str(e),
                 error_type=type(e).__name__,
-                error_traceback=logfire.format_exc(),
+                error_traceback=traceback.format_exc(),
                 params=request.model_dump()
             )
             return {
