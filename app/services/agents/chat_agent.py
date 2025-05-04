@@ -51,7 +51,15 @@ IMPORTANT LANGUAGE INSTRUCTION:
     
     return "".join(instructions)
 
-@chat_agent.tool
+async def if_web_search_enabled(
+    ctx: RunContext[Deps], tool_def: ToolDefinition
+) -> Union[ToolDefinition, None]:
+    """Only enables the web_search tool if use_web_search is true in the deps."""
+    if ctx.deps.use_web_search:
+        return None
+    return tool_def
+
+@chat_agent.tool(prepare=if_web_search_enabled)
 async def knowledge_base_search(ctx: RunContext[Deps], request: KnowledgeBaseRequest) -> dict:
     """
     Query the knowledge base for information about alternative medicine.
@@ -85,15 +93,7 @@ async def knowledge_base_search(ctx: RunContext[Deps], request: KnowledgeBaseReq
     """
     return await perform_knowledge_base_query(ctx, request)
 
-async def only_if_web_search_enabled(
-    ctx: RunContext[Deps], tool_def: ToolDefinition
-) -> Union[ToolDefinition, None]:
-    """Only enables the web_search tool if use_web_search is true in the deps."""
-    if ctx.deps.use_web_search:
-        return tool_def
-    return None
-
-@chat_agent.tool(prepare=only_if_web_search_enabled)
+@chat_agent.tool
 async def web_search(ctx: RunContext[Deps], request: WebSearchRequest) -> dict:
     """
     Search the web for relevant information about alternative medicine and health topics.
